@@ -173,4 +173,29 @@
             const textBlob = new Blob([textFileContent.trim()], { type: 'text/plain' });
             const textUrl = URL.createObjectURL(textBlob);
             const textLink = document.createElement('a');
-            textLink.href
+            textLink.href = textUrl;
+            textLink.download = 'output.txt';
+            textLink.style.display = 'none';
+            document.body.appendChild(textLink);
+            textLink.click();
+            document.body.removeChild(textLink);
+
+            const ws = XLSX.utils.aoa_to_sheet([header, ...excelData]);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, 'Sheet1');
+            XLSX.writeFile(wb, 'output.xlsx');
+        }
+
+        function formatDate(date) {
+            const parsedDate = new Date(date);
+            if (isNaN(parsedDate)) {
+                return '';
+            }
+            const day = String(parsedDate.getDate()).padStart(2, '0');
+            const month = String(parsedDate.getMonth() + 1).padStart(2, '0');
+            const year = parsedDate.getFullYear();
+            return `${day}/${month}/${year}`;
+        }
+    </script>
+</body>
+</html>
