@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Excel Upload App</title>
+    <link rel="stylesheet" href="styles.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.17.0/xlsx.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f4f4f4;
+        }
+        .container {
+            background: white;
+            padding: 20px;
+            border-radius: 5px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            margin-bottom: 20px;
+        }
+        input[type="text"], input[type="password"], input[type="file"] {
+            width: 100%;
+            padding: 10px;
+            margin: 10px 0;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+        }
+        button {
+            padding: 10px;
+            background-color: #007BFF;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        .error-message {
+            color: red;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container" id="loginContainer">
+        <h1>Login</h1>
+        <input type="text" id="username" placeholder="Username" required />
+        <input type="password" id="password" placeholder="Password" required />
+        <button id="loginButton">Login</button>
+        <p id="loginErrorMessage" class="error-message" style="display: none;"></p>
+    </div>
+
+    <div class="container" id="uploadContainer" style="display: none;">
+        <h1>Excel Upload App</h1>
+        <div class="instructions">
+            <h2>Instructions</h2>
+            <p>To upload your Excel file, please ensure the following:</p>
+            <ul>
+                <li>The first row should contain the headers:</li>
+                <li><strong>ip_no, uan, name, epf wage, eps wage, edli wage, gross wage, ncp, doe</strong></li>
+                <li>Make sure the data is filled correctly under each header.</li>
+                <li>The file format should be either <strong>.xlsx</strong> or <strong>.xls</strong>.</li>
+            </ul>
+        </div>
+        <input type="file" id="fileInput" accept=".xlsx, .xls" />
+        <button id="uploadButton">Upload</button>
+        <p id="errorMessage" class="error-message" style="display: none;"></p>
+    </div>
+
+    <script>
+        const users = [
+            { username: "admin", password: "admin123" },
+            { username: "user1", password: "password1" },
+            { username: "user2", password: "password2" }
+        ];
+
+        document.getElementById('loginButton').addEventListener('click', () => {
+            const username = document.getElementById('username').value.trim();
+            const password = document.getElementById('password').value.trim();
+            const loginErrorMessage = document.getElementById('loginErrorMessage');
+            loginErrorMessage.style.display = 'none';
+
+            const user = users.find(u => u.username === username && u.password === password);
+            
+            if (user) {
+                document.getElementById('loginContainer').style.display = 'none';
+                document.getElementById('uploadContainer').style.display = 'block';
+            } else {
+                loginErrorMessage.textContent = "Invalid username or password.";
+                loginErrorMessage.style.display = 'block';
+            }
+        });
+
+        document.getElementById('uploadButton').addEventListener('click', () => {
+            const fileInput = document.getElementById('fileInput');
+            const file = fileInput.files[0];
+            const errorMessage = document.getElementById('errorMessage');
+            errorMessage.style.display = 'none';
+
+            if (!file) {
+                showError("Please upload an Excel file.");
+                return;
+            }
+
+            if (!file.name.endsWith('.xlsx') && !file.name.endsWith('.xls')) {
+                showError("Invalid file format. Please upload an .xlsx or .xls file.");
+                return;
+            }
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const data = new Uint8Array(e.target.result);
+                const workbook = XLSX.read(data, { type: 'array' });
+                const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+                const jsonData = XLSX.utils.sheet_to_json(firstSheet, { header: 1 });
+
+                if (!jsonData || jsonData.length === 0) {
+                    showError("Uploaded file is empty or not formatted correctly.");
+                    return;
+                }
+
+                processExcelData(jsonData);
+            };
+            reader.readAsArrayBuffer(file);
+        });
+
+        function showError(message) {
+            const errorMessage = document.getElementById('errorMessage');
+            errorMessage.textContent = message;
+            errorMessage.style.display = 'block';
+        }
+
+        function processExcelData(data) {
+            let textFileContent = '';
+            let excelData = [];
+            const header = [
+                "IP Number (10 Digits)",
+                "IP Name (Only alphabets and space)",
+                "No of Days for which wages paid/payable during the month",
+                "Total Monthly Wages",
+                "Reason Code for Zero workings days(numeric only; provide 0 for all other reasons- Click on the link for reference)",
+                "Last Working Day (Format DD/MM/YYYY or DD-MM-YYYY)"
+            ];
+            
+            const monthDays = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).getDate();
+
+            for (let i = 1; i < data.length; i++) {
+                const row = data[i];
+                const [ip_no, uan, name, epf_wage, eps_wage, edli_wage, gross_wage, ncp, doe] = row;
+
+                const epfRounded = Math.round(epf_wage * 12 / 100);
+                const epsRounded = Math.round(eps_wage * 8.33 / 100);
+                const difference = epfRounded - epsRounded;
+
+                textFileContent += `${uan || ''}#~#${name || ''}#~#${gross_wage || ''}#~#${epf_wage || ''}#~#${eps_wage || ''}#~#${epfRounded}#~#${epsRounded}#~#${difference}#~#${ncp || ''}#~#0\n`;
+
+                const daysPaid = monthDays - (ncp || 0);
+                const formattedDoe = doe ? formatDate(doe) : '';
+                excelData.push([
+                    ip_no || '',
+                    name || '',
+                    daysPaid,
+                    gross_wage || '',
+                    0,
+                    formattedDoe
+                ]);
+            }
+
+            const textBlob = new Blob([textFileContent.trim()], { type: 'text/plain' });
+            const textUrl = URL.createObjectURL(textBlob);
+            const textLink = document.createElement('a');
+            textLink.href
