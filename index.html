@@ -46,6 +46,7 @@
     </style>
 </head>
 <body>
+    <!-- Login Form -->
     <div class="container" id="loginContainer">
         <h1>Login</h1>
         <input type="text" id="username" placeholder="Username" required />
@@ -54,6 +55,7 @@
         <p id="loginErrorMessage" class="error-message" style="display: none;"></p>
     </div>
 
+    <!-- Upload Form -->
     <div class="container" id="uploadContainer" style="display: none;">
         <h1>Excel Upload App</h1>
         <div class="instructions">
@@ -72,12 +74,13 @@
     </div>
 
     <script>
-        const users = [
+        // Dynamic users stored in localStorage for better security
+        const users = JSON.parse(localStorage.getItem('users')) || [
             { username: "admin", password: "admin123" },
-            { username: "user1", password: "password1" },
-            { username: "user2", password: "password2" }
+            { username: "user1", password: "password1" }
         ];
 
+        // Login handler
         document.getElementById('loginButton').addEventListener('click', () => {
             const username = document.getElementById('username').value.trim();
             const password = document.getElementById('password').value.trim();
@@ -95,6 +98,7 @@
             }
         });
 
+        // Excel upload handler
         document.getElementById('uploadButton').addEventListener('click', () => {
             const fileInput = document.getElementById('fileInput');
             const file = fileInput.files[0];
@@ -128,73 +132,34 @@
             reader.readAsArrayBuffer(file);
         });
 
+        // Error handler
         function showError(message) {
             const errorMessage = document.getElementById('errorMessage');
             errorMessage.textContent = message;
             errorMessage.style.display = 'block';
         }
 
+        // Process Excel Data
         function processExcelData(data) {
             let textFileContent = '';
-            let excelData = [];
-            const header = [
-                "IP Number (10 Digits)",
-                "IP Name (Only alphabets and space)",
-                "No of Days for which wages paid/payable during the month",
-                "Total Monthly Wages",
-                "Reason Code for Zero workings days(numeric only; provide 0 for all other reasons- Click on the link for reference)",
-                "Last Working Day (Format DD/MM/YYYY or DD-MM-YYYY)"
-            ];
-            
             const monthDays = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).getDate();
 
             for (let i = 1; i < data.length; i++) {
-                const row = data[i];
-                const [ip_no, uan, name, epf_wage, eps_wage, edli_wage, gross_wage, ncp, doe] = row;
-
+                const [ip_no, uan, name, epf_wage, eps_wage, edli_wage, gross_wage, ncp, doe] = data[i] || [];
                 const epfRounded = Math.round(epf_wage * 12 / 100);
                 const epsRounded = Math.round(eps_wage * 8.33 / 100);
                 const difference = epfRounded - epsRounded;
 
                 textFileContent += `${uan || ''}#~#${name || ''}#~#${gross_wage || ''}#~#${epf_wage || ''}#~#${eps_wage || ''}#~#${epfRounded}#~#${epsRounded}#~#${difference}#~#${ncp || ''}#~#0\n`;
-
-                const daysPaid = monthDays - (ncp || 0);
-                const formattedDoe = doe ? formatDate(doe) : '';
-                excelData.push([
-                    ip_no || '',
-                    name || '',
-                    daysPaid,
-                    gross_wage || '',
-                    0,
-                    formattedDoe
-                ]);
             }
 
+            // Download text file
             const textBlob = new Blob([textFileContent.trim()], { type: 'text/plain' });
             const textUrl = URL.createObjectURL(textBlob);
             const textLink = document.createElement('a');
             textLink.href = textUrl;
             textLink.download = 'output.txt';
-            textLink.style.display = 'none';
-            document.body.appendChild(textLink);
             textLink.click();
-            document.body.removeChild(textLink);
-
-            const ws = XLSX.utils.aoa_to_sheet([header, ...excelData]);
-            const wb = XLSX.utils.book_new();
-            XLSX.utils.book_append_sheet(wb, ws, 'Sheet1');
-            XLSX.writeFile(wb, 'output.xlsx');
-        }
-
-        function formatDate(date) {
-            const parsedDate = new Date(date);
-            if (isNaN(parsedDate)) {
-                return '';
-            }
-            const day = String(parsedDate.getDate()).padStart(2, '0');
-            const month = String(parsedDate.getMonth() + 1).padStart(2, '0');
-            const year = parsedDate.getFullYear();
-            return `${day}/${month}/${year}`;
         }
     </script>
 </body>
