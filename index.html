@@ -71,12 +71,12 @@
         <h1>Excel Upload App</h1>
         <input type="file" id="fileInput" accept=".xlsx, .xls" />
         <button id="uploadButton">Upload</button>
+        <button id="downloadSample">Download Sample Excel</button>
         <p id="errorMessage" class="error-message" style="display: none;"></p>
     </div>
 
     <script>
-        // Simulated login user data stored in localStorage
-        const users = JSON.parse(localStorage.getItem('users')) || [
+        const users = [
             { username: "admin", password: "admin123" },
             { username: "user1", password: "password1" }
         ];
@@ -144,7 +144,9 @@
         function processExcelData(data) {
             let textFileContent = '';
             const monthDays = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).getDate();
-            const excelData = [data[0]];  // Store the headers in excelData
+            const excelData = [
+                ["IP Number (10 Digits)", "IP Name (Only alphabets and space)", "No of Days for which wages paid/payable during the month", "Total Monthly Wages", "Reason Code for Zero workings days", "Last Working Day (Format DD/MM/YYYY or DD-MM-YYYY)"]
+            ];
 
             for (let i = 1; i < data.length; i++) {
                 const [ip_no, uan, name, epf_wage, eps_wage, edli_wage, gross_wage, ncp, doe] = data[i] || [];
@@ -152,12 +154,11 @@
                 const epsRounded = Math.round(eps_wage * 8.33 / 100);
                 const difference = epfRounded - epsRounded;
 
-                // Text file content format
                 textFileContent += `${uan || ''}#~#${name || ''}#~#${gross_wage || ''}#~#${epf_wage || ''}#~#${eps_wage || ''}#~#${epfRounded}#~#${epsRounded}#~#${difference}#~#${ncp || ''}#~#0\n`;
 
-                // Prepare for Excel download
                 const daysPaid = monthDays - (ncp || 0);
-                excelData.push([ip_no || '', name || '', daysPaid, gross_wage || '', 0, doe || '']);
+                const formattedDoe = doe ? formatDate(doe) : '';
+                excelData.push([ip_no || '', name || '', daysPaid, gross_wage || '', 0, formattedDoe]);
             }
 
             // Download text file
@@ -168,12 +169,34 @@
             textLink.download = 'output.txt';
             textLink.click();
 
-            // Download updated Excel file
+            // Download Excel file
             const ws = XLSX.utils.aoa_to_sheet(excelData);
             const newWorkbook = XLSX.utils.book_new();
             XLSX.utils.book_append_sheet(newWorkbook, ws, "Updated Data");
             XLSX.writeFile(newWorkbook, 'updated_data.xlsx');
         }
+
+        // Helper function to format date
+        function formatDate(dateString) {
+            const date = new Date(dateString);
+            const day = String(date.getDate()).padStart(2, '0');
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const year = date.getFullYear();
+            return `${day}/${month}/${year}`;
+        }
+
+        // Download Sample Excel
+        document.getElementById('downloadSample').addEventListener('click', () => {
+            const sampleData = [
+                ["ip_no", "uan", "name", "epf wage", "eps wage", "edli wage", "gross wage", "ncp", "doe"],
+                ["1234567890", "123456789012", "John Doe", "15000", "12500", "12500", "18000", "2", "2023-08-30"]
+            ];
+
+            const ws = XLSX.utils.aoa_to_sheet(sampleData);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, "Sample");
+            XLSX.writeFile(wb, 'sample_upload.xlsx');
+        });
     </script>
 </body>
 </html>
