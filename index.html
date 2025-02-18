@@ -84,29 +84,53 @@
                     alert("Uploaded file is empty or not formatted correctly.");
                     return;
                 }
-                
+
+                // **Updated Data Sheet**
                 const excelData = [
                     ["IP Number (10 Digits)", "IP Name", "Days Paid", "Total Monthly Wages", "Reason Code", "Last Working Day"]
                 ];
+
+                // **Pay Bill Format**
                 const payBillData = [
                     ["Receipts Sl. No.", "UAN", "Name", "Basic", "DA", "HRA", "Conveyance", "Gross Wage", "PF", "ESI", "Other 1", "Other 2", "Net Pay"]
+                ];
+
+                // **Additional Pay Bill Format**
+                const additionalPayBill = [
+                    ["Employee ID", "UAN", "Name", "Department", "Basic Pay", "HRA", "Conveyance", "Gross Salary", "Deductions", "Net Salary"]
                 ];
                 
                 jsonData.slice(1).forEach((row, index) => {
                     const [ip_no, uan, name, basic, da, hra, conveyance, gross_wage, pf, esi, other1, other2] = row;
+                    
+                    // Updated Data
                     excelData.push([ip_no, name, 30, gross_wage, 0, "30/09/2024"]);
+                    
+                    // Pay Bill Data
                     payBillData.push([
                         index + 1, uan, name, basic, da, hra, conveyance, gross_wage, pf, esi, other1, other2,
                         gross_wage - pf - esi - other1 - other2
                     ]);
+
+                    // Additional Pay Bill Format (Example Department as 'Finance')
+                    additionalPayBill.push([
+                        `EMP${index + 1}`, uan, name, "Finance", basic, hra, conveyance, gross_wage,
+                        pf + esi + other1 + other2,
+                        gross_wage - (pf + esi + other1 + other2)
+                    ]);
                 });
-                
+
+                // **Create Excel File**
                 const wb = XLSX.utils.book_new();
                 const ws1 = XLSX.utils.aoa_to_sheet(excelData);
                 const ws2 = XLSX.utils.aoa_to_sheet(payBillData);
+                const ws3 = XLSX.utils.aoa_to_sheet(additionalPayBill);
+                
                 XLSX.utils.book_append_sheet(wb, ws1, "Updated Data");
                 XLSX.utils.book_append_sheet(wb, ws2, "Pay Bill");
-                XLSX.writeFile(wb, 'updated_data.xlsx');
+                XLSX.utils.book_append_sheet(wb, ws3, "Additional Pay Bill");
+
+                XLSX.writeFile(wb, 'processed_data.xlsx');
             };
             reader.readAsArrayBuffer(file);
         });
