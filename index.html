@@ -57,17 +57,7 @@
     </style>
 </head>
 <body>
-    <!-- Login Form -->
-    <div class="container" id="loginContainer">
-        <h1>PF & Return App - Login</h1>
-        <input type="text" id="username" placeholder="Username" required />
-        <input type="password" id="password" placeholder="Password" required />
-        <button id="loginButton">Login</button>
-        <p id="loginErrorMessage" class="error-message" style="display: none;"></p>
-    </div>
-
-    <!-- Upload Form -->
-    <div class="container" id="uploadContainer" style="display: none;">
+    <div class="container" id="uploadContainer">
         <h1>PF & ESI Return Excel Upload App</h1>
         <input type="file" id="fileInput" accept=".xlsx, .xls" />
         <button id="uploadButton">Upload</button>
@@ -76,126 +66,49 @@
     </div>
 
     <script>
-        const users = [
-            { username: "admin", password: "admin123" },
-            { username: "user1", password: "password1" }
-        ];
-
-        // Login handler
-        document.getElementById('loginButton').addEventListener('click', () => {
-            const username = document.getElementById('username').value.trim();
-            const password = document.getElementById('password').value.trim();
-            const loginErrorMessage = document.getElementById('loginErrorMessage');
-            loginErrorMessage.style.display = 'none';
-
-            const user = users.find(u => u.username === username && u.password === password);
-            
-            if (user) {
-                document.getElementById('loginContainer').style.display = 'none';
-                document.getElementById('uploadContainer').style.display = 'block';
-            } else {
-                loginErrorMessage.textContent = "Invalid username or password.";
-                loginErrorMessage.style.display = 'block';
-            }
-        });
-
-        // Excel upload handler
         document.getElementById('uploadButton').addEventListener('click', () => {
             const fileInput = document.getElementById('fileInput');
             const file = fileInput.files[0];
-            const errorMessage = document.getElementById('errorMessage');
-            errorMessage.style.display = 'none';
-
             if (!file) {
-                showError("Please upload an Excel file.");
+                alert("Please upload an Excel file.");
                 return;
             }
-
-            if (!file.name.endsWith('.xlsx') && !file.name.endsWith('.xls')) {
-                showError("Invalid file format. Please upload an .xlsx or .xls file.");
-                return;
-            }
-
             const reader = new FileReader();
             reader.onload = function(e) {
                 const data = new Uint8Array(e.target.result);
                 const workbook = XLSX.read(data, { type: 'array' });
                 const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
                 const jsonData = XLSX.utils.sheet_to_json(firstSheet, { header: 1 });
-
+                
                 if (!jsonData || jsonData.length === 0) {
-                    showError("Uploaded file is empty or not formatted correctly.");
+                    alert("Uploaded file is empty or not formatted correctly.");
                     return;
                 }
-
-                processExcelData(jsonData);
+                
+                const excelData = [
+                    ["IP Number (10 Digits)", "IP Name", "Days Paid", "Total Monthly Wages", "Reason Code", "Last Working Day"]
+                ];
+                const payBillData = [
+                    ["Receipts Sl. No.", "UAN", "Name", "Basic", "DA", "HRA", "Conveyance", "Gross Wage", "PF", "ESI", "Other 1", "Other 2", "Net Pay"]
+                ];
+                
+                jsonData.slice(1).forEach((row, index) => {
+                    const [ip_no, uan, name, basic, da, hra, conveyance, gross_wage, pf, esi, other1, other2] = row;
+                    excelData.push([ip_no, name, 30, gross_wage, 0, "30/09/2024"]);
+                    payBillData.push([
+                        index + 1, uan, name, basic, da, hra, conveyance, gross_wage, pf, esi, other1, other2,
+                        gross_wage - pf - esi - other1 - other2
+                    ]);
+                });
+                
+                const wb = XLSX.utils.book_new();
+                const ws1 = XLSX.utils.aoa_to_sheet(excelData);
+                const ws2 = XLSX.utils.aoa_to_sheet(payBillData);
+                XLSX.utils.book_append_sheet(wb, ws1, "Updated Data");
+                XLSX.utils.book_append_sheet(wb, ws2, "Pay Bill");
+                XLSX.writeFile(wb, 'updated_data.xlsx');
             };
             reader.readAsArrayBuffer(file);
-        });
-
-        // Error handler
-        function showError(message) {
-            const errorMessage = document.getElementById('errorMessage');
-            errorMessage.textContent = message;
-            errorMessage.style.display = 'block';
-        }
-
-        // Process Excel Data
-        function processExcelData(data) {
-            let textFileContent = '';
-            const monthDays = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).getDate();
-            const excelData = [
-                ["IP Number (10 Digits)", "IP Name (Only alphabets and space)", "No of Days for which wages paid/payable during the month", "Total Monthly Wages", "Reason Code for Zero workings days", "Last Working Day (Format DD/MM/YYYY or DD-MM-YYYY)"]
-            ];
-
-            for (let i = 1; i < data.length; i++) {
-                const [ip_no, uan, name, epf_wage, eps_wage, edli_wage, gross_wage, ncp, doe] = data[i] || [];
-                const epfRounded = Math.round(epf_wage * 12 / 100);
-                const epsRounded = Math.round(eps_wage * 8.33 / 100);
-                const difference = epfRounded - epsRounded;
-
-                textFileContent += `${uan || ''}#~#${name || ''}#~#${gross_wage || ''}#~#${epf_wage || ''}#~#${eps_wage || ''}#~#${epfRounded}#~#${epsRounded}#~#${difference}#~#${ncp || ''}#~#0\n`;
-
-                const daysPaid = monthDays - (ncp || 0);
-                const formattedDoe = doe ? formatDate(doe) : '';
-                excelData.push([ip_no || '', name || '', daysPaid, gross_wage || '', 0, formattedDoe]);
-            }
-
-            // Download text file
-            const textBlob = new Blob([textFileContent.trim()], { type: 'text/plain' });
-            const textUrl = URL.createObjectURL(textBlob);
-            const textLink = document.createElement('a');
-            textLink.href = textUrl;
-            textLink.download = 'output.txt';
-            textLink.click();
-
-            // Download Excel file
-            const ws = XLSX.utils.aoa_to_sheet(excelData);
-            const newWorkbook = XLSX.utils.book_new();
-            XLSX.utils.book_append_sheet(newWorkbook, ws, "Updated Data");
-            XLSX.writeFile(newWorkbook, 'updated_data.xlsx');
-        }
-
-        // Helper function to format date
-        function formatDate(dateString) {
-            const date = new Date(dateString);
-            const day = String(date.getDate()).padStart(2, '0');
-            const month = String(date.getMonth() + 1).padStart(2, '0');
-            const year = date.getFullYear();
-            return `${day}/${month}/${year}`;
-        }
-
-        // Download Sample Excel
-        document.getElementById('downloadSample').addEventListener('click', () => {
-            const sampleData = [
-                ["ip_no", "uan", "name", "epf wage", "eps wage", "edli wage", "gross wage", "ncp", "doe"],
-                ["1234567890", "123456789012", "John Doe", "15000", "12500", "12500", "18000", "2", "2023-08-30"]
-            ];
-
-            const ws = XLSX.utils.aoa_to_sheet(sampleData);
-            const wb = XLSX.utils.book_new();
-            XLSX.utils.book_append_sheet(wb, ws, "Sample");
-            XLSX.writeFile(wb, 'sample_upload.xlsx');
         });
     </script>
 </body>
